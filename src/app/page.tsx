@@ -1,65 +1,315 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+
+interface Product {
+  id: number;
+  productname: string;
+  price: number;
+  in_stock: boolean;
+}
 
 export default function Home() {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [token, setToken] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+
+  // Inventory state
+  const [products, setProducts] = useState<Product[]>([]);
+  const [newProductName, setNewProductName] = useState('');
+  const [newPrice, setNewPrice] = useState('');
+  
+  // AI Description state
+  const [aiProduct, setAiProduct] = useState('');
+  const [aiPrice, setAiPrice] = useState('');
+  const [aiDescription, setAiDescription] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+  // Load token from localStorage on boot
+  useEffect(() => {
+  // Ensure we are in the browser before reading localStorage
+  if (typeof window !== 'undefined') {
+    const savedToken = localStorage.getItem('token');
+    if (savedToken) {
+      setToken(savedToken);
+    }
+    }
+  }, []);
+
+  // Fetch products whenever token is available
+  useEffect(() => {
+    if (token) {
+      fetchProducts();
+    }
+  }, [token]);
+
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch(`${API_URL}/products`);
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch products:', err);
+    }
+  };
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage('');
+
+    try {
+      if (isLogin) {
+        const formData = new URLSearchParams();
+        formData.append('username', email);
+        formData.append('password', password);
+
+        const res = await fetch(`${API_URL}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Login failed');
+
+        localStorage.setItem('token', data.access_token);
+        setToken(data.access_token);
+        setMessage('');
+      } else {
+        const res = await fetch(`${API_URL}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Registration failed');
+
+        setMessage('Registration successful! Logging you in...');
+        setIsLogin(true);
+      }
+    } catch (err: any) {
+      setMessage(`Error: ${err.message}`);
+    }
+  };
+
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) {
+      alert('You must be logged in to add products.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/products`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          productname: newProductName,
+          price: parseFloat(newPrice),
+          in_stock: true,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail ? JSON.stringify(data.detail) : 'Failed to create product');
+      }
+
+      setNewProductName('');
+      setNewPrice('');
+      fetchProducts();
+    } catch (err: any) {
+      console.error('Create product error:', err);
+      alert(`Error adding product: ${err.message}`);
+    }
+  };
+
+  const handleGenerateAI = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAiDescription('');
+    setIsGenerating(true);
+
+    try {
+      const res = await fetch(`${API_URL}/ai/generate-description`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productname: aiProduct,
+          price: parseFloat(aiPrice),
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.detail ? JSON.stringify(errorData.detail) : `HTTP status: ${res.status}`);
+      }
+
+      if (!res.body) return;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        setAiDescription((prev) => prev + chunk);
+      }
+    } catch (err: any) {
+      console.error('AI Stream Error:', err);
+      alert(`AI Generation error: ${err.message}`);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleLogout = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('token');
+  }
+  setToken(null);
+  setProducts([]);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main style={{ maxWidth: '650px', margin: '40px auto', fontFamily: 'sans-serif', padding: '20px' }}>
+      {!token ? (
+        <div style={{ border: '1px solid #ccc', padding: '24px', borderRadius: '8px' }}>
+          <h2>{isLogin ? 'Login' : 'Register'}</h2>
+          {message && <p style={{ color: message.startsWith('Error') ? 'red' : 'green' }}>{message}</p>}
+          <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '4px' }}>Email</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '4px' }}>Password</label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+              />
+            </div>
+            <button type="submit" style={{ padding: '10px', background: '#0070f3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+              {isLogin ? 'Log In' : 'Register'}
+            </button>
+            <p style={{ fontSize: '14px', textAlign: 'center' }}>
+              {isLogin ? "Don't have an account? " : 'Already have an account? '}
+              <span
+                onClick={() => { setIsLogin(!isLogin); setMessage(''); }}
+                style={{ color: '#0070f3', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                {isLogin ? 'Register' : 'Log In'}
+              </span>
+            </p>
+          </form>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      ) : (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2>Dashboard</h2>
+            <button onClick={handleLogout} style={{ padding: '8px 16px', cursor: 'pointer', background: '#ff4d4f', color: '#fff', border: 'none', borderRadius: '4px' }}>
+              Log Out
+            </button>
+          </div>
+
+          {/* ADD PRODUCT FORM */}
+          <section style={{ border: '1px solid #ddd', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
+            <h3>Add New Product</h3>
+            <form onSubmit={handleCreateProduct} style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                placeholder="Product Name"
+                required
+                value={newProductName}
+                onChange={(e) => setNewProductName(e.target.value)}
+                style={{ flex: 2, padding: '8px' }}
+              />
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Price"
+                required
+                value={newPrice}
+                onChange={(e) => setNewPrice(e.target.value)}
+                style={{ flex: 1, padding: '8px' }}
+              />
+              <button type="submit" style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                Add
+              </button>
+            </form>
+          </section>
+
+          {/* INVENTORY LIST */}
+          <section style={{ border: '1px solid #ddd', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
+            <h3>Inventory Items</h3>
+            {products.length === 0 ? (
+              <p>No products found in database.</p>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0 }}>
+                {products.map((p) => (
+                  <li key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #eee' }}>
+                    <span><strong>{p.productname}</strong></span>
+                    <span>${p.price.toFixed(2)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* AI DESCRIPTION GENERATOR */}
+          <section style={{ border: '1px solid #ddd', padding: '16px', borderRadius: '8px' }}>
+            <h3>Test AI Streaming Generator</h3>
+            <form onSubmit={handleGenerateAI} style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <input
+                type="text"
+                placeholder="Product Name"
+                required
+                value={aiProduct}
+                onChange={(e) => setAiProduct(e.target.value)}
+                style={{ flex: 2, padding: '8px' }}
+              />
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Price"
+                required
+                value={aiPrice}
+                onChange={(e) => setAiPrice(e.target.value)}
+                style={{ flex: 1, padding: '8px' }}
+              />
+              <button type="submit" disabled={isGenerating} style={{ padding: '8px 16px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                {isGenerating ? 'Generating...' : 'Generate'}
+              </button>
+            </form>
+            {aiDescription && (
+              <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '4px', whiteSpace: 'pre-wrap' }}>
+                {aiDescription}
+              </div>
+            )}
+          </section>
         </div>
-      </main>
-    </div>
+      )}
+    </main>
   );
 }
