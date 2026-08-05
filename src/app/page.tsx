@@ -7,6 +7,7 @@ interface Product {
   productname: string;
   price: number;
   in_stock: boolean;
+  category?: string;
 }
 
 export default function Home() {
@@ -20,6 +21,7 @@ export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [newProductName, setNewProductName] = useState('');
   const [newPrice, setNewPrice] = useState('');
+  const [newCategory, setNewCategory] = useState('');
   
   // AI Description state
   const [aiProduct, setAiProduct] = useState('');
@@ -117,6 +119,7 @@ export default function Home() {
           productname: newProductName,
           price: parseFloat(newPrice),
           in_stock: true,
+          category: newCategory || 'General',
         }),
       });
 
@@ -236,14 +239,22 @@ export default function Home() {
           {/* ADD PRODUCT FORM */}
           <section style={{ border: '1px solid #ddd', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
             <h3>Add New Product</h3>
-            <form onSubmit={handleCreateProduct} style={{ display: 'flex', gap: '8px' }}>
+            <form onSubmit={handleCreateProduct} style={{ display: 'flex', gap: '8px', width: '100%', boxSizing: 'border-box' }}>
               <input
                 type="text"
                 placeholder="Product Name"
                 required
                 value={newProductName}
                 onChange={(e) => setNewProductName(e.target.value)}
-                style={{ flex: 2, padding: '8px' }}
+                style={{ flex: '2 1 0%', minWidth: 0, padding: '8px', boxSizing: 'border-box' }}
+              />
+              <input
+                type="text"
+                placeholder="Category Name"
+                required
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                style={{ flex: '1.5 1 0%', minWidth: 0, padding: '8px', boxSizing: 'border-box' }}
               />
               <input
                 type="number"
@@ -252,9 +263,9 @@ export default function Home() {
                 required
                 value={newPrice}
                 onChange={(e) => setNewPrice(e.target.value)}
-                style={{ flex: 1, padding: '8px' }}
+                style={{ flex: '1 1 0%', minWidth: 0, padding: '8px', boxSizing: 'border-box' }}
               />
-              <button type="submit" style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+              <button type="submit" style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 Add
               </button>
             </form>
@@ -268,9 +279,10 @@ export default function Home() {
             ) : (
               <ul style={{ listStyle: 'none', padding: 0 }}>
                 {products.map((p) => (
-                  <li key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #eee' }}>
-                    <span><strong>{p.productname}</strong></span>
-                    <span>${p.price.toFixed(2)}</span>
+                  <li key={p.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1fr', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #eee' }}>
+                    <span style={{ fontWeight: '600' }}>{p.productname}</span>
+                    <span style={{ display: 'inline-block', padding: '3px 8px', background: '#e9ecef', color: '#495057',borderRadius: '12px', fontSize: '12px', fontWeight: '500'}}>{p.category}</span>
+                    <span style={{ textAlign: 'right', fontWeight: '500' }}>${p.price.toFixed(2)}</span>
                   </li>
                 ))}
               </ul>
